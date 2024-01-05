@@ -1,0 +1,30 @@
+[package]
+name = "wasm-module"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[build]
+tartet = "wasm32-unknown-unknown"
+
+[dependencies]
+wasm-bindgen = "0.2.84"
+# arrow = "49.0"
+# thiserror-no-std = "2.0.2"
+# console_error_panic_hook = "0.1.7"
+
+[dependencies.web-sys]
+version = "0.3.4"
+features = [
+  'Document',
+  'Element',
+  'HtmlElement',
+  'Node',
+  'Window',
+]
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.34"
+

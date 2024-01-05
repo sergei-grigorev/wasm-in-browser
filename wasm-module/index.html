@@ -1,0 +1,26 @@
+<html>
+  <head>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type"/>
+  </head>
+  <body>
+    <!-- Note the usage of `type=module` here as this is an ES6 module -->
+    <script type="module">
+      import main, { add, say_hi } from './pkg/wasm_module.js';
+
+      async function run() {
+        await main();
+
+        const result = add(1, 2);
+        console.log(`1 + 2 = ${result}`);
+        if (result !== 3)
+          throw new Error("wasm addition doesn't work!");
+
+        const greetings = say_hi("Sergei");
+        console.log(greetings);
+      }
+
+      run();
+    </script>
+  </body>
+</html>
+

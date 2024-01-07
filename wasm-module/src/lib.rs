@@ -75,7 +75,7 @@ async fn request_data() -> Result<Vec<u8>, JsValue> {
     opts.method("GET");
     opts.mode(RequestMode::SameOrigin);
 
-    let url = "http://127.0.0.1:3000/data";
+    let url = "/data";
 
     let request = Request::new_with_str_and_init(&url, &opts)?;
 

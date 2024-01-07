@@ -1,0 +1,41 @@
+<html>
+  <head>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type"/>
+  </head>
+  <body>
+    <!-- Note the usage of `type=module` here as this is an ES6 module -->
+    <p>WASM Module</p>
+    <script type="module">
+      import main, { add, say_hi, run_aggregation } from './wasm_module.js';
+
+      async function run() {
+        const result = add(1, 2);
+        let p = document.createElement("p");
+        p.innerHTML = "Result of add is " + result;
+        document.body.append(p);
+
+        let p2 = document.createElement("p");
+        p2.innerHTML = "Result from say_hi: " + say_hi("Browser");
+        document.body.append(p2);
+      }
+
+      async function aggregate() {
+        let p = document.createElement("p");
+        try {
+          const aggregateRes = await run_aggregation();
+          p.innerHTML = "Successfully aggregate data: " + aggregateRes;
+        } catch(err) {
+          console.error(err);
+          p.innerHTML = "Failed aggregate data: " + err;
+        }
+
+        document.body.append(p);
+      }
+
+      await main();
+      await run();
+      await aggregate();
+    </script>
+  </body>
+</html>
+

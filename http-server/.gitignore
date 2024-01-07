@@ -1,0 +1,5 @@
+main.wasm
+.spin/
+
+assets/wasm_module.js
+assets/wasm_module_bg.wasm

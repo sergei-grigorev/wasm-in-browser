@@ -2,23 +2,30 @@
 
 extern crate alloc;
 
-use alloc::{format, string::String, vec::Vec};
+use alloc::{format, vec::Vec};
+use arrow::array::Int32Array;
+use arrow::compute::{max, min};
 use arrow::{ipc::reader::StreamReader, record_batch::RecordBatch};
-use js_sys::{ArrayBuffer, Uint8Array};
+use js_sys::Uint8Array;
 use thiserror_no_std::Error;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::Blob;
 use web_sys::{Request, RequestInit, RequestMode, Response};
 
 #[derive(Error, Debug)]
-enum AggregateError {
+pub enum AggregateError {
     #[error("Data was not received")]
     RequestFailed(JsValue),
     #[error("Cannot decode RecordBatch")]
     DecodingError,
     #[error("Data has a wrong format")]
     CastError,
+}
+
+impl Into<JsValue> for AggregateError {
+    fn into(self) -> JsValue {
+        JsValue::from_str(&format!("Aggregation failed: {self}"))
+    }
 }
 
 #[wasm_bindgen]
@@ -30,44 +37,87 @@ extern "C" {
 // Called when the wasm module is instantiated
 #[wasm_bindgen(start)]
 pub fn main() -> Result<(), JsValue> {
+    // no initialization code
     Ok(())
 }
 
 #[wasm_bindgen]
-pub async fn run_aggregation() -> Result<u32, JsValue> {
-    match run_aggregation_internal().await {
-        Ok(res) => Ok(res),
-        Err(AggregateError::RequestFailed(err)) => Err(err),
-        Err(err) => Err(JsValue::from_str(&format!("Aggregation failed: {err}"))),
+pub struct Dataset {
+    internal: Option<RecordBatch>,
+}
+
+#[wasm_bindgen]
+impl Dataset {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Self {
+        Self { internal: None }
     }
-}
 
-#[wasm_bindgen]
-pub fn add(a: u32, b: u32) -> Result<u32, JsValue> {
-    Ok(a + b)
-}
+    pub async fn fetch_data(&mut self) -> Result<usize, AggregateError> {
+        let data = request_data()
+            .await
+            .map_err(|err| AggregateError::RequestFailed(err))?;
 
-#[wasm_bindgen]
-pub fn say_hi(user: String) -> String {
-    format!("Hello, {}", user)
-}
+        let batch: RecordBatch = {
+            let mut stream_reader = StreamReader::try_new(data.as_slice(), None)
+                .map_err(|_| AggregateError::DecodingError)?;
+            if let Some(elem) = stream_reader.next() {
+                elem.map_err(|_| AggregateError::DecodingError)?
+            } else {
+                return Err(AggregateError::DecodingError);
+            }
+        };
 
-async fn run_aggregation_internal() -> Result<u32, AggregateError> {
-    let data = request_data()
-        .await
-        .map_err(AggregateError::RequestFailed)?;
+        let rows_count = batch.num_rows();
+        self.internal = Some(batch);
+        Ok(rows_count)
+    }
 
-    let batch: RecordBatch = {
-        let mut stream_reader = StreamReader::try_new(data.as_slice(), None)
-            .map_err(|_| AggregateError::DecodingError)?;
-        if let Some(elem) = stream_reader.next() {
-            elem.map_err(|_| AggregateError::DecodingError)?
+    pub fn aggregate_data1(&self) -> Result<i32, AggregateError> {
+        if let Some(batch) = self.internal.as_ref() {
+            let column1: &Int32Array = batch
+                .column(0)
+                .as_any()
+                .downcast_ref::<Int32Array>()
+                .ok_or(AggregateError::CastError)?;
+
+            let column2: &Int32Array = batch
+                .column(1)
+                .as_any()
+                .downcast_ref::<Int32Array>()
+                .ok_or(AggregateError::CastError)?;
+
+            // combine both arrays and then retun the max element
+            let both: Int32Array = arrow::compute::binary(column1, column2, |a, b| a + b)
+                .map_err(|_| AggregateError::CastError)?;
+            Ok(max(&both).unwrap_or_default() as i32)
         } else {
-            return Err(AggregateError::DecodingError);
+            Ok(0)
         }
-    };
+    }
 
-    Ok(batch.num_rows() as u32)
+    pub fn aggregate_data2(&self) -> Result<i32, AggregateError> {
+        if let Some(batch) = self.internal.as_ref() {
+            let column1: &Int32Array = batch
+                .column(0)
+                .as_any()
+                .downcast_ref::<Int32Array>()
+                .ok_or(AggregateError::CastError)?;
+
+            let column2: &Int32Array = batch
+                .column(1)
+                .as_any()
+                .downcast_ref::<Int32Array>()
+                .ok_or(AggregateError::CastError)?;
+
+            // combine both arrays and then retun the max element
+            let both: Int32Array = arrow::compute::binary(column1, column2, |a, b| -(a + b))
+                .map_err(|_| AggregateError::CastError)?;
+            Ok(min(&both).unwrap_or_default() as i32)
+        } else {
+            Ok(0)
+        }
+    }
 }
 
 async fn request_data() -> Result<Vec<u8>, JsValue> {
@@ -94,6 +144,5 @@ async fn request_data() -> Result<Vec<u8>, JsValue> {
     let body = JsFuture::from(resp.array_buffer()?).await?;
     let array: Uint8Array = Uint8Array::new(&body);
     let vec: Vec<_> = array.to_vec();
-
     Ok(vec)
 }

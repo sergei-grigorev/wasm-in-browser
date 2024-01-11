@@ -3,28 +3,44 @@ use std::sync::Arc;
 use spin_sdk::http::{IntoResponse, Request, Response};
 use spin_sdk::http_component;
 
-use arrow::array::Int32Array;
+use arrow::array::Int32Builder;
 use arrow::datatypes::{Field, SchemaBuilder};
 use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
 
+// 5,000,000
+const RECORDS_COUNT: usize = 5000000;
+
 /// A simple Spin HTTP component.
 #[http_component]
-fn handle_data(req: Request) -> anyhow::Result<impl IntoResponse> {
+fn handle_data(_: Request) -> anyhow::Result<impl IntoResponse> {
     // array to be aggregated
-    let column1 = Int32Array::from(vec![10, 20, 30]);
-    let column2 = Int32Array::from(vec![30, 20, 10]);
+    let mut column1 = Int32Builder::with_capacity(RECORDS_COUNT);
+    let mut column2 = Int32Builder::with_capacity(RECORDS_COUNT);
+
+    for i in 0..RECORDS_COUNT {
+        if i % 3 != 0 {
+            column1.append_value(i as i32);
+            column2.append_value(i as i32);
+        } else {
+            column1.append_null();
+            column2.append_null();
+        }
+    }
+
+    let column1 = column1.finish();
+    let column2 = column2.finish();
 
     let mut schema = SchemaBuilder::with_capacity(2);
     schema.push(Field::new(
         "column1",
         arrow::datatypes::DataType::Int32,
-        false,
+        true,
     ));
     schema.push(Field::new(
         "column2",
         arrow::datatypes::DataType::Int32,
-        false,
+        true,
     ));
     let schema = schema.finish();
 

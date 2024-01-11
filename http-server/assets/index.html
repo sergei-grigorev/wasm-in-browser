@@ -1,39 +1,59 @@
+<!DOCTYPE html>
 <html>
   <head>
     <meta content="text/html;charset=utf-8" http-equiv="Content-Type"/>
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
   </head>
   <body>
     <!-- Note the usage of `type=module` here as this is an ES6 module -->
     <p>WASM Module</p>
     <script type="module">
-      import main, { add, say_hi, run_aggregation } from './wasm_module.js';
-
-      async function run() {
-        const result = add(1, 2);
-        let p = document.createElement("p");
-        p.innerHTML = "Result of add is " + result;
-        document.body.append(p);
-
-        let p2 = document.createElement("p");
-        p2.innerHTML = "Result from say_hi: " + say_hi("Browser");
-        document.body.append(p2);
-      }
+      import main, { Dataset } from './wasm_module.js';
 
       async function aggregate() {
-        let p = document.createElement("p");
+        printProgress("fetch data ..");
+        let dataset = new Dataset();
         try {
-          const aggregateRes = await run_aggregation();
-          p.innerHTML = "Successfully aggregate data: " + aggregateRes;
+          const rowsCount = await dataset.fetch_data();
+          printProgress("successfully fetched data: " + rowsCount + " rows");
         } catch(err) {
           console.error(err);
-          p.innerHTML = "Failed aggregate data: " + err;
+          printProgress("failed fetching data");
+          return;
         }
 
+        printProgress("aggregate data 1..");
+        try {
+          // todo: aggregate in async
+          const aggregated = dataset.aggregate_data1();
+          printProgress("done: " + aggregated);
+        } catch(err) {
+          console.error(err);
+          printProgress("failed aggregating data");
+          return;
+        }
+
+        printProgress("aggregate data 2..");
+        try {
+          // todo: aggregate in async
+          const aggregated = dataset.aggregate_data2();
+          printProgress("done: " + aggregated);
+        } catch(err) {
+          console.error(err);
+          printProgress("failed aggregating data");
+          return;
+        }
+      }
+
+      function printProgress(message) {
+        let p = document.createElement("p");
+        p.innerHTML = message;
         document.body.append(p);
       }
 
+      // init wasm module
       await main();
-      await run();
+
       await aggregate();
     </script>
   </body>

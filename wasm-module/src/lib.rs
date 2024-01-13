@@ -6,7 +6,7 @@ use alloc::{format, vec::Vec};
 use arrow::array::Int32Array;
 use arrow::compute::{max, min};
 use arrow::{ipc::reader::StreamReader, record_batch::RecordBatch};
-use js_sys::Uint8Array;
+use js_sys::{Promise, Uint8Array};
 use thiserror_no_std::Error;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
@@ -16,8 +16,10 @@ use web_sys::{Request, RequestInit, RequestMode, Response};
 pub enum AggregateError {
     #[error("Data was not received")]
     RequestFailed(JsValue),
-    #[error("Cannot decode RecordBatch")]
-    DecodingError,
+    #[error("Cannot decode RecordBatch: {0}")]
+    DecodingError(arrow::error::ArrowError),
+    #[error("Unknown decoding error")]
+    UnknownDecodingError,
     #[error("Data has a wrong format")]
     CastError,
 }
@@ -30,15 +32,11 @@ impl Into<JsValue> for AggregateError {
 
 #[wasm_bindgen]
 extern "C" {
-    #[wasm_bindgen(js_namespace = console)]
-    fn log(s: &str);
-}
+    // #[wasm_bindgen(js_namespace = console)]
+    // fn log(s: &str);
 
-// Called when the wasm module is instantiated
-#[wasm_bindgen(start)]
-pub fn main() -> Result<(), JsValue> {
-    // no initialization code
-    Ok(())
+    #[wasm_bindgen(js_name = fetch)]
+    fn fetch_with_request(input: &Request) -> Promise;
 }
 
 #[wasm_bindgen]
@@ -50,21 +48,22 @@ pub struct Dataset {
 impl Dataset {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
+        console_error_panic_hook::set_once();
         Self { internal: None }
     }
 
     pub async fn fetch_data(&mut self) -> Result<usize, AggregateError> {
         let data = request_data()
             .await
-            .map_err(|err| AggregateError::RequestFailed(err))?;
+            .map_err(AggregateError::RequestFailed)?;
 
         let batch: RecordBatch = {
             let mut stream_reader = StreamReader::try_new(data.as_slice(), None)
-                .map_err(|_| AggregateError::DecodingError)?;
+                .map_err(AggregateError::DecodingError)?;
             if let Some(elem) = stream_reader.next() {
-                elem.map_err(|_| AggregateError::DecodingError)?
+                elem.map_err(AggregateError::DecodingError)?
             } else {
-                return Err(AggregateError::DecodingError);
+                return Err(AggregateError::UnknownDecodingError);
             }
         };
 
@@ -133,8 +132,7 @@ async fn request_data() -> Result<Vec<u8>, JsValue> {
         .headers()
         .set("Accept", "application/octet-stream")?;
 
-    let window = web_sys::window().unwrap();
-    let resp_value = JsFuture::from(window.fetch_with_request(&request)).await?;
+    let resp_value = JsFuture::from(fetch_with_request(&request)).await?;
 
     // `resp_value` is a `Response` object.
     assert!(resp_value.is_instance_of::<Response>());

@@ -15,18 +15,16 @@ wasm-bindgen-futures = "0.4.24"
 js-sys = "0.3.66"
 arrow = "49.0"
 thiserror-no-std = "2.0.2"
-# console_error_panic_hook = "0.1.7"
+console_error_panic_hook = "0.1.7"
 
 [dependencies.web-sys]
 version = "0.3.4"
 features = [
-  'Window',
   'Headers',
   'Request',
   'RequestInit',
   'RequestMode',
-  'Response',
-  'Blob'
+  'Response'
 ]
 
 [dev-dependencies]

@@ -1,61 +1,25 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta content="text/html;charset=utf-8" http-equiv="Content-Type"/>
-    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
-  </head>
-  <body>
-    <!-- Note the usage of `type=module` here as this is an ES6 module -->
-    <p>WASM Module</p>
-    <script type="module">
-      import main, { Dataset } from './wasm_module.js';
 
-      async function aggregate() {
-        printProgress("fetch data ..");
-        let dataset = new Dataset();
-        try {
-          const rowsCount = await dataset.fetch_data();
-          printProgress("successfully fetched data: " + rowsCount + " rows");
-        } catch(err) {
-          console.error(err);
-          printProgress("failed fetching data");
-          return;
-        }
+<head>
+  <meta content="text/html;charset=utf-8" http-equiv="Content-Type" />
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+</head>
 
-        printProgress("aggregate data 1..");
-        try {
-          // todo: aggregate in async
-          const aggregated = dataset.aggregate_data1();
-          printProgress("done: " + aggregated);
-        } catch(err) {
-          console.error(err);
-          printProgress("failed aggregating data");
-          return;
-        }
+<body>
+  <!-- Note the usage of `type=module` here as this is an ES6 module -->
+  <p>WASM Module</p>
+  <p id="aggregate_log">
+    Program log:<br />
+  </p>
 
-        printProgress("aggregate data 2..");
-        try {
-          // todo: aggregate in async
-          const aggregated = dataset.aggregate_data2();
-          printProgress("done: " + aggregated);
-        } catch(err) {
-          console.error(err);
-          printProgress("failed aggregating data");
-          return;
-        }
-      }
+  <!-- UI script -->
+  <script type="module">
+    import { initUI } from './js/page.js';
 
-      function printProgress(message) {
-        let p = document.createElement("p");
-        p.innerHTML = message;
-        document.body.append(p);
-      }
+    // init UI module
+    initUI();
+  </script>
+</body>
 
-      // init wasm module
-      await main();
-
-      await aggregate();
-    </script>
-  </body>
 </html>
-

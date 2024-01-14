@@ -1,25 +1,34 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Edge computing using WASM</title>
 
-<head>
-  <meta content="text/html;charset=utf-8" http-equiv="Content-Type" />
-  <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
-</head>
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico" />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN"
+      crossorigin="anonymous"
+    />
+  </head>
 
-<body>
-  <!-- Note the usage of `type=module` here as this is an ES6 module -->
-  <p>WASM Module</p>
-  <p id="aggregate_log">
-    Program log:<br />
-  </p>
+  <body>
+    <div class="container">
+      <p class="fw-bold text-start">WASM Module</p>
+      <div class="container">
+        <p class="fw-semibold">Program log:</p>
+        <ul class="list-group" id="aggregate_log"></ul>
+      </div>
+    </div>
 
-  <!-- UI script -->
-  <script type="module">
-    import { initUI } from './js/page.js';
+    <!-- UI script -->
+    <script type="module">
+      import { initUI } from "./js/page.js";
 
-    // init UI module
-    initUI();
-  </script>
-</body>
-
+      // init UI module
+      initUI();
+    </script>
+  </body>
 </html>

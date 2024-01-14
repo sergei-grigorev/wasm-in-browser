@@ -3,10 +3,9 @@
 extern crate alloc;
 
 use alloc::{format, vec::Vec};
-use arrow::array::Int32Array;
-use arrow::compute::{max, min};
 use arrow::{ipc::reader::StreamReader, record_batch::RecordBatch};
 use js_sys::{Promise, Uint8Array};
+use polars::prelude::*;
 use thiserror_no_std::Error;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
@@ -20,8 +19,10 @@ pub enum AggregateError {
     DecodingError(arrow::error::ArrowError),
     #[error("Unknown decoding error")]
     UnknownDecodingError,
-    #[error("Data has a wrong format")]
-    CastError,
+    #[error("Data has a wrong format: {0}")]
+    ConverError(PolarsError),
+    #[error("Computation failed: {0}")]
+    ComputeError(PolarsError),
 }
 
 impl Into<JsValue> for AggregateError {
@@ -88,36 +89,70 @@ impl Dataset {
         };
 
         let rows_count = batch.num_rows();
+
         self.internal = Some(batch);
         Ok(rows_count)
     }
 
     pub fn aggregate_data(&self, task: AggregateTask) -> Result<i32, AggregateError> {
         if let Some(batch) = self.internal.as_ref() {
-            let column1: &Int32Array = batch
-                .column(0)
-                .as_any()
-                .downcast_ref::<Int32Array>()
-                .ok_or(AggregateError::CastError)?;
+            // transform to Polars
+            let df: LazyFrame = {
+                let schema = batch.schema();
+                let size = batch.num_rows();
+                let columns = batch.num_columns();
+                let mut list = Vec::with_capacity(size);
+                for i in 0..columns {
+                    let name = schema.fields.get(i).unwrap().name();
+                    let row = batch.column(i);
+                    let series = Series::from_arrow_rs(name.as_str(), row.as_ref())
+                        .map_err(AggregateError::ConverError)?;
+                    list.push(series);
+                }
 
-            let column2: &Int32Array = batch
-                .column(1)
-                .as_any()
-                .downcast_ref::<Int32Array>()
-                .ok_or(AggregateError::CastError)?;
+                let df = DataFrame::new(list).map_err(AggregateError::ConverError)?;
+                df.lazy()
+            };
 
-            // combine both arrays and then retun the max element
+            // combine both arrays and then return the max element
             match task.method {
                 AggregateMethod::MaxSum => {
-                    let both: Int32Array = arrow::compute::binary(column1, column2, |a, b| a + b)
-                        .map_err(|_| AggregateError::CastError)?;
-                    Ok(max(&both).unwrap_or_default() as i32)
+                    let sum_column = col("column1") + col("column2");
+                    let df: DataFrame = df
+                        .filter(col("column1").gt(lit(0)))
+                        .filter(col("column2").gt(lit(0)))
+                        .select([sum_column.max()])
+                        .collect()
+                        .map_err(AggregateError::ComputeError)?;
+
+                    if let Some(row) = df.get(0) {
+                        if let AnyValue::Int32(res) = row.first().unwrap() {
+                            Ok(*res)
+                        } else {
+                            unreachable!()
+                        }
+                    } else {
+                        Ok(0)
+                    }
                 }
                 AggregateMethod::MinSum => {
-                    let both: Int32Array =
-                        arrow::compute::binary(column1, column2, |a, b| -(a + b))
-                            .map_err(|_| AggregateError::CastError)?;
-                    Ok(min(&both).unwrap_or_default() as i32)
+                    let sum_column = lit(0) - (col("column1") + col("column2"));
+                    let df: DataFrame = df
+                        .filter(col("column1").gt(lit(0)))
+                        .filter(col("column2").gt(lit(0)))
+                        .select([sum_column.min()])
+                        .collect()
+                        .map_err(AggregateError::ComputeError)?;
+
+                    if let Some(row) = df.get(0) {
+                        if let AnyValue::Int32(res) = row.first().unwrap() {
+                            Ok(*res)
+                        } else {
+                            unreachable!()
+                        }
+                    } else {
+                        Ok(0)
+                    }
                 }
             }
         } else {
